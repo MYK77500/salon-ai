@@ -15,15 +15,37 @@
   <div id="result" style="margin-top:30px;"></div>
 
   <script>
-    function searchClient() {
+    const SUPABASE_URL = "https://nzlhhwzfubxgqvguxehi.supabase.co";
+    const SUPABASE_KEY = "sb_secret_6ZDiA8spKI6i7PNE6R6BuQ_9mfvQK_J";
+
+    async function searchClient() {
       const client = document.getElementById("client").value;
 
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/recommandation_v2?numero_client=eq.${client}`,
+        {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: "Bearer " + SUPABASE_KEY,
+          },
+        }
+      );
+
+      const data = await res.json();
+
+      if (data.length === 0) {
+        document.getElementById("result").innerHTML = "Cliente non trouvée";
+        return;
+      }
+
+      const c = data[0];
+
       document.getElementById("result").innerHTML = `
-        <h2>Cliente ${client}</h2>
-        <p><strong>Dernière visite :</strong> 15/02/2026</p>
-        <p><strong>Prestation :</strong> Couleur + brushing</p>
-        <p><strong>Recommandation :</strong> Proposer soin profond</p>
-        <p><strong>Phrase :</strong> Un soin profond serait idéal aujourd’hui</p>
+        <h2>Cliente ${c.numero_client}</h2>
+        <p><strong>Dernière visite :</strong> ${c.derniere_date}</p>
+        <p><strong>Prestation :</strong> ${c.detail_visite_1}</p>
+        <p><strong>Recommandation :</strong> ${c.recommandation_v1}</p>
+        <p><strong>Phrase :</strong> ${c.phrase_vente_v1}</p>
       `;
     }
   </script>
