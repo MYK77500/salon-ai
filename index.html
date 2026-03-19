@@ -2,126 +2,121 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Salon AI</title>
 </head>
-<body style="font-family: Arial, sans-serif; padding: 30px; max-width: 900px; margin: auto;">
+
+<body style="font-family: Arial; padding: 30px; max-width: 900px; margin: auto;">
 
   <h1>Recherche cliente</h1>
 
-  <div style="margin-bottom: 20px;">
-    <input
-      type="text"
-      id="search"
-      placeholder="Tapez un nom ou un prénom"
-      style="padding: 12px; width: 320px;"
-    />
-    <button onclick="searchClients()" style="padding: 12px;">Rechercher</button>
-  </div>
+  <input
+    type="text"
+    id="search"
+    placeholder="Nom ou prénom"
+    style="padding:10px; width:300px;"
+  />
 
-  <div id="matches" style="margin-bottom: 30px;"></div>
-  <div id="result"></div>
+  <button onclick="searchClients()" style="padding:10px;">Rechercher</button>
+
+  <div id="matches" style="margin-top:20px;"></div>
+  <div id="result" style="margin-top:30px;"></div>
 
   <script>
     const SUPABASE_URL = "https://nzlhhwzfubxgqvguxehi.supabase.co";
+
+    // https://nzlhhwzfubxgqvguxehi.supabase.co
     const SUPABASE_KEY = "sb_secret_6ZDiA8spKI6i7PNE6R6BuQ_9mfvQK_J";
 
     async function searchClients() {
       const q = document.getElementById("search").value.trim();
-      document.getElementById("result").innerHTML = "";
+
       document.getElementById("matches").innerHTML = "";
+      document.getElementById("result").innerHTML = "";
 
-      if (!q) {
-        document.getElementById("matches").innerHTML = "<p>Merci de saisir un nom ou un prénom.</p>";
-        return;
-      }
+      if (!q) return;
 
-      const url = `${SUPABASE_URL}/rest/v1/app_clientes_v1?select=numero_client,nom,prenom&or=(nom.ilike.*${encodeURIComponent(q)}*,prenom.ilike.*${encodeURIComponent(q)}*)&order=nom.asc`;
+      const headers = {
+        apikey: SUPABASE_KEY,
+        Authorization: "Bearer " + SUPABASE_KEY
+      };
 
-      const res = await fetch(url, {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: "Bearer " + SUPABASE_KEY
+      const urlNom = `${SUPABASE_URL}/rest/v1/app_clientes_v1?select=numero_client,nom,prenom&nom=ilike.*${encodeURIComponent(q)}*`;
+      const urlPrenom = `${SUPABASE_URL}/rest/v1/app_clientes_v1?select=numero_client,nom,prenom&prenom=ilike.*${encodeURIComponent(q)}*`;
+
+      const [resNom, resPrenom] = await Promise.all([
+        fetch(urlNom, { headers }),
+        fetch(urlPrenom, { headers })
+      ]);
+
+      const dataNom = await resNom.json();
+      const dataPrenom = await resPrenom.json();
+
+      const fusion = [...dataNom, ...dataPrenom];
+
+      const seen = new Set();
+      const uniques = [];
+
+      fusion.forEach(c => {
+        if (!seen.has(c.numero_client)) {
+          seen.add(c.numero_client);
+          uniques.push(c);
         }
       });
 
-      const data = await res.json();
-
-      if (!data || data.length === 0) {
-        document.getElementById("matches").innerHTML = "<p>Aucune cliente trouvée.</p>";
+      if (uniques.length === 0) {
+        document.getElementById("matches").innerHTML = "Aucune cliente trouvée";
         return;
       }
 
-      let html = "<h2>Résultats</h2>";
-      html += "<div style='display:flex; flex-direction:column; gap:10px;'>";
+      let html = "<h3>Résultats :</h3>";
 
-      data.forEach(c => {
+      uniques.forEach(c => {
         html += `
-          <button
-            onclick="loadClient('${c.numero_client}')"
-            style="text-align:left; padding:12px; border:1px solid #ccc; background:#fff; cursor:pointer;"
-          >
-            <strong>${c.nom || ""} ${c.prenom || ""}</strong>
-          </button>
+          <div onclick="loadClient('${c.numero_client}')"
+            style="padding:10px; border:1px solid #ccc; margin-bottom:5px; cursor:pointer;">
+            ${c.nom || ""} ${c.prenom || ""}
+          </div>
         `;
       });
 
-      html += "</div>";
       document.getElementById("matches").innerHTML = html;
     }
 
     async function loadClient(numeroClient) {
-      const url = `${SUPABASE_URL}/rest/v1/app_clientes_v1?numero_client=eq.${encodeURIComponent(numeroClient)}&select=*`;
-
-      const res = await fetch(url, {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: "Bearer " + SUPABASE_KEY
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/app_clientes_v1?numero_client=eq.${numeroClient}`,
+        {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: "Bearer " + SUPABASE_KEY
+          }
         }
-      });
+      );
 
       const data = await res.json();
 
-      if (!data || data.length === 0) {
-        document.getElementById("result").innerHTML = "<p>Fiche cliente introuvable.</p>";
-        return;
-      }
+      if (data.length === 0) return;
 
       const c = data[0];
 
       document.getElementById("result").innerHTML = `
-        <hr style="margin:30px 0;">
-        <h2>${c.nom || ""} ${c.prenom || ""}</h2>
+        <h2>${c.nom} ${c.prenom}</h2>
 
-        <p><strong>Nombre de visites :</strong> ${c.visites_total ?? ""}</p>
-        <p><strong>CA total :</strong> ${c.ca_total ?? ""}</p>
-        <p><strong>Fiche moyenne :</strong> ${c.fiche_moyenne ?? ""}</p>
+        <p><strong>Visites :</strong> ${c.visites_total}</p>
+        <p><strong>Fiche moyenne :</strong> ${c.fiche_moyenne}</p>
 
-        <h3>3 dernières visites</h3>
-
-        <p><strong>Visite 1 :</strong> ${c.derniere_date || ""}</p>
-        <p>${c.detail_visite_1 || ""}</p>
-        <p><strong>Ticket :</strong> ${c.dernier_ticket ?? ""}</p>
-
-        <p><strong>Visite 2 :</strong> ${c.date_2 || ""}</p>
-        <p>${c.detail_visite_2 || ""}</p>
-        <p><strong>Ticket :</strong> ${c.ticket_2 ?? ""}</p>
-
-        <p><strong>Visite 3 :</strong> ${c.date_3 || ""}</p>
-        <p>${c.detail_visite_3 || ""}</p>
-        <p><strong>Ticket :</strong> ${c.ticket_3 ?? ""}</p>
-
-        <h3>Analyse</h3>
-        <p><strong>Couleur sans soin :</strong> ${c.couleur_sans_soin || ""}</p>
-        <p><strong>Achat produit :</strong> ${c.achat_produit || ""}</p>
+        <h3>Dernière visite</h3>
+        <p>${c.derniere_date}</p>
+        <p>${c.detail_visite_1}</p>
 
         <h3>Recommandation</h3>
-        <p><strong>${c.recommandation_v1 || ""}</strong></p>
+        <p>${c.recommandation_v1}</p>
 
-        <h3>Phrase de vente</h3>
-        <p>${c.phrase_vente_v1 || ""}</p>
+        <h3>Phrase</h3>
+        <p>${c.phrase_vente_v1}</p>
       `;
     }
   </script>
+
 </body>
 </html>
