@@ -2,121 +2,188 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Salon AI</title>
 </head>
-
-<body style="font-family: Arial; padding: 30px; max-width: 900px; margin: auto;">
+<body style="font-family: Arial, sans-serif; padding: 30px; max-width: 900px; margin: auto;">
 
   <h1>Recherche cliente</h1>
 
-  <input
-    type="text"
-    id="search"
-    placeholder="Nom ou prénom"
-    style="padding:10px; width:300px;"
-  />
+  <div style="margin-bottom: 20px;">
+    <input
+      type="text"
+      id="search"
+      placeholder="Tapez un nom ou un prénom"
+      style="padding: 12px; width: 320px;"
+    />
+    <button onclick="searchClients()" style="padding: 12px;">Rechercher</button>
+  </div>
 
-  <button onclick="searchClients()" style="padding:10px;">Rechercher</button>
-
-  <div id="matches" style="margin-top:20px;"></div>
-  <div id="result" style="margin-top:30px;"></div>
+  <div id="debug" style="margin-bottom:20px; color:#b00020;"></div>
+  <div id="matches" style="margin-bottom: 30px;"></div>
+  <div id="result"></div>
 
   <script>
     const SUPABASE_URL = "https://nzlhhwzfubxgqvguxehi.supabase.co";
-
-    // https://nzlhhwzfubxgqvguxehi.supabase.co
     const SUPABASE_KEY = "sb_secret_6ZDiA8spKI6i7PNE6R6BuQ_9mfvQK_J";
 
-    async function searchClients() {
-      const q = document.getElementById("search").value.trim();
+    function showError(message) {
+      document.getElementById("debug").innerText = message;
+    }
 
-      document.getElementById("matches").innerHTML = "";
-      document.getElementById("result").innerHTML = "";
+    function clearError() {
+      document.getElementById("debug").innerText = "";
+    }
 
-      if (!q) return;
-
-      const headers = {
-        apikey: SUPABASE_KEY,
-        Authorization: "Bearer " + SUPABASE_KEY
-      };
-
-      const urlNom = `${SUPABASE_URL}/rest/v1/app_clientes_v1?select=numero_client,nom,prenom&nom=ilike.*${encodeURIComponent(q)}*`;
-      const urlPrenom = `${SUPABASE_URL}/rest/v1/app_clientes_v1?select=numero_client,nom,prenom&prenom=ilike.*${encodeURIComponent(q)}*`;
-
-      const [resNom, resPrenom] = await Promise.all([
-        fetch(urlNom, { headers }),
-        fetch(urlPrenom, { headers })
-      ]);
-
-      const dataNom = await resNom.json();
-      const dataPrenom = await resPrenom.json();
-
-      const fusion = [...dataNom, ...dataPrenom];
-
-      const seen = new Set();
-      const uniques = [];
-
-      fusion.forEach(c => {
-        if (!seen.has(c.numero_client)) {
-          seen.add(c.numero_client);
-          uniques.push(c);
+    async function apiFetch(url) {
+      const res = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: "Bearer " + SUPABASE_KEY,
+          Accept: "application/json"
         }
       });
 
-      if (uniques.length === 0) {
-        document.getElementById("matches").innerHTML = "Aucune cliente trouvée";
+      const text = await res.text();
+
+      if (!res.ok) {
+        throw new Error(`Erreur API ${res.status} : ${text}`);
+      }
+
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        throw new Error("Réponse API invalide : " + text);
+      }
+    }
+
+    async function searchClients() {
+      clearError();
+      document.getElementById("result").innerHTML = "";
+      document.getElementById("matches").innerHTML = "";
+
+      const q = document.getElementById("search").value.trim();
+
+      if (!q) {
+        showError("Merci de saisir un nom ou un prénom.");
         return;
       }
 
-      let html = "<h3>Résultats :</h3>";
+      try {
+        const qEncoded = encodeURIComponent(`*${q}*`);
 
-      uniques.forEach(c => {
-        html += `
-          <div onclick="loadClient('${c.numero_client}')"
-            style="padding:10px; border:1px solid #ccc; margin-bottom:5px; cursor:pointer;">
-            ${c.nom || ""} ${c.prenom || ""}
-          </div>
-        `;
-      });
+        const urlNom =
+          `${SUPABASE_URL}/rest/v1/app_clientes_v1` +
+          `?select=numero_client,nom,prenom` +
+          `&nom=ilike.${qEncoded}` +
+          `&order=nom.asc,prenom.asc`;
 
-      document.getElementById("matches").innerHTML = html;
+        const urlPrenom =
+          `${SUPABASE_URL}/rest/v1/app_clientes_v1` +
+          `?select=numero_client,nom,prenom` +
+          `&prenom=ilike.${qEncoded}` +
+          `&order=nom.asc,prenom.asc`;
+
+        const [dataNom, dataPrenom] = await Promise.all([
+          apiFetch(urlNom),
+          apiFetch(urlPrenom)
+        ]);
+
+        const fusion = [...dataNom, ...dataPrenom];
+        const seen = new Set();
+        const uniques = [];
+
+        fusion.forEach(c => {
+          const key = String(c.numero_client || "").trim();
+          if (key && !seen.has(key)) {
+            seen.add(key);
+            uniques.push(c);
+          }
+        });
+
+        if (uniques.length === 0) {
+          document.getElementById("matches").innerHTML = "<p>Aucune cliente trouvée.</p>";
+          return;
+        }
+
+        let html = "<h2>Résultats</h2>";
+        html += "<div style='display:flex; flex-direction:column; gap:10px;'>";
+
+        uniques.forEach(c => {
+          const numero = String(c.numero_client || "").replace(/'/g, "\\'");
+          html += `
+            <button
+              onclick="loadClient('${numero}')"
+              style="text-align:left; padding:12px; border:1px solid #ccc; background:#fff; cursor:pointer;"
+            >
+              <strong>${c.nom || ""} ${c.prenom || ""}</strong>
+            </button>
+          `;
+        });
+
+        html += "</div>";
+        document.getElementById("matches").innerHTML = html;
+
+      } catch (err) {
+        showError(err.message);
+      }
     }
 
     async function loadClient(numeroClient) {
-      const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/app_clientes_v1?numero_client=eq.${numeroClient}`,
-        {
-          headers: {
-            apikey: SUPABASE_KEY,
-            Authorization: "Bearer " + SUPABASE_KEY
-          }
+      clearError();
+      document.getElementById("result").innerHTML = "";
+
+      try {
+        const url =
+          `${SUPABASE_URL}/rest/v1/app_clientes_v1` +
+          `?numero_client=eq.${encodeURIComponent(numeroClient)}` +
+          `&select=*`;
+
+        const data = await apiFetch(url);
+
+        if (!data || data.length === 0) {
+          document.getElementById("result").innerHTML = "<p>Fiche cliente introuvable.</p>";
+          return;
         }
-      );
 
-      const data = await res.json();
+        const c = data[0];
 
-      if (data.length === 0) return;
+        document.getElementById("result").innerHTML = `
+          <hr style="margin:30px 0;">
+          <h2>${c.nom || ""} ${c.prenom || ""}</h2>
 
-      const c = data[0];
+          <p><strong>Nombre de visites :</strong> ${c.visites_total ?? ""}</p>
+          <p><strong>CA total :</strong> ${c.ca_total ?? ""}</p>
+          <p><strong>Fiche moyenne :</strong> ${c.fiche_moyenne ?? ""}</p>
 
-      document.getElementById("result").innerHTML = `
-        <h2>${c.nom} ${c.prenom}</h2>
+          <h3>3 dernières visites</h3>
 
-        <p><strong>Visites :</strong> ${c.visites_total}</p>
-        <p><strong>Fiche moyenne :</strong> ${c.fiche_moyenne}</p>
+          <p><strong>Visite 1 :</strong> ${c.derniere_date || ""}</p>
+          <p>${c.detail_visite_1 || ""}</p>
+          <p><strong>Ticket :</strong> ${c.dernier_ticket ?? ""}</p>
 
-        <h3>Dernière visite</h3>
-        <p>${c.derniere_date}</p>
-        <p>${c.detail_visite_1}</p>
+          <p><strong>Visite 2 :</strong> ${c.date_2 || ""}</p>
+          <p>${c.detail_visite_2 || ""}</p>
+          <p><strong>Ticket :</strong> ${c.ticket_2 ?? ""}</p>
 
-        <h3>Recommandation</h3>
-        <p>${c.recommandation_v1}</p>
+          <p><strong>Visite 3 :</strong> ${c.date_3 || ""}</p>
+          <p>${c.detail_visite_3 || ""}</p>
+          <p><strong>Ticket :</strong> ${c.ticket_3 ?? ""}</p>
 
-        <h3>Phrase</h3>
-        <p>${c.phrase_vente_v1}</p>
-      `;
+          <h3>Analyse</h3>
+          <p><strong>Couleur sans soin :</strong> ${c.couleur_sans_soin || ""}</p>
+          <p><strong>Achat produit :</strong> ${c.achat_produit || ""}</p>
+
+          <h3>Recommandation</h3>
+          <p><strong>${c.recommandation_v1 || ""}</strong></p>
+
+          <h3>Phrase de vente</h3>
+          <p>${c.phrase_vente_v1 || ""}</p>
+        `;
+      } catch (err) {
+        showError(err.message);
+      }
     }
   </script>
-
 </body>
 </html>
