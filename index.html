@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Salon AI</title>
+  <meta charset="UTF-8">
+</head>
+
+<body style="font-family: Arial; padding: 40px;">
+
+  <h1>🔍 Recherche cliente</h1>
+
+  <input type="text" id="client" placeholder="Numéro client" style="padding:10px; width:300px;">
+  <button onclick="searchClient()" style="padding:10px;">Rechercher</button>
+
+  <div id="result" style="margin-top:30px;"></div>
+
+  <script>
+    function searchClient() {
+      const client = document.getElementById("client").value;
+
+      document.getElementById("result").innerHTML = `
+        <h2>Cliente ${client}</h2>
+        <p><strong>Dernière visite :</strong> 15/02/2026</p>
+        <p><strong>Prestation :</strong> Couleur + brushing</p>
+        <p><strong>Recommandation :</strong> Proposer soin profond</p>
+        <p><strong>Phrase :</strong> Un soin profond serait idéal aujourd’hui</p>
+      `;
+    }
+  </script>
+
+</body>
+</html>
